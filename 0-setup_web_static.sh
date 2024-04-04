@@ -1,46 +1,44 @@
-#!/bin/env bash
+#!/usr/bin/env bash
+# Prepare my webservers (web-01 & web-02)
 
-# Install Nginx if not already installed
-sudo apt-get update
-sudo apt-get -y install nginx
+# uncomment for easy debugging
+#set -x
 
-# Create necessary directories
-sudo mkdir -p /data/web_static/releases/test
-sudo mkdir -p /data/web_static/shared
+# colors
+blue='\e[1;34m'
+#brown='\e[0;33m'
+green='\e[1;32m'
+reset='\033[0m'
 
-# Create fake HTML file
-echo "<html><head></head><body>Holberton School</body></html>" | sudo tee /data/web_static/releases/test/index.html
+echo -e "${blue}Updating and doing some minor checks...${reset}\n"
 
-# Create symbolic link
-sudo ln -sf /data/web_static/releases/test/ /data/web_static/current
+# install nginx if not present
+if [ ! -x /usr/sbin/nginx ]; then
+	sudo apt-get update -y -qq && \
+	     sudo apt-get install -y nginx
+fi
 
-# Set ownership to ubuntu user and group recursively
+echo -e "\n${blue}Setting up some minor stuff.${reset}\n"
+
+# Create directories...
+sudo mkdir -p /data/web_static/releases/test /data/web_static/shared/
+
+# create index.html for test directory
+echo "<h1>Welcome to baragu.tech <\h1>" | sudo dd status=none of=/data/web_static/releases/test/index.html
+
+# create symbolic link
+sudo ln -sf /data/web_static/releases/test /data/web_static/current
+
+# give user ownership to directory
 sudo chown -R ubuntu:ubuntu /data/
 
-# Update Nginx configuration
-config_content="server {
-    listen 80 default_server;
-    listen [::]:80 default_server;
+# backup default server config file
+sudo cp /etc/nginx/sites-enabled/default nginx-sites-enabled_default.backup
 
-    server_name _;
+# Set-up the content of /data/web_static/current/ to redirect
+# to domain.tech/hbnb_static
+sudo sed -i '37i\\tlocation /hbnb_static/ {\n\t\talias /data/web_static/current/;\n\t}\n' /etc/nginx/sites-available/default
 
-    location /hbnb_static {
-        alias /data/web_static/current/;
-    }
-
-    location /redirect_me {
-        return 301 https://www.youtube.com/watch?v=dQw4w9WgXcQ;
-    }
-
-    location / {
-        add_header X-Served-By $HOSTNAME;
-        proxy_pass http://localhost:5000;
-    }
-}"
-echo "$config_content" | sudo tee /etc/nginx/sites-available/default
-
-# Restart Nginx
 sudo service nginx restart
 
-exit 0
-
+echo -e "${green}Completed${reset}"
